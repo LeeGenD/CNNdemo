@@ -107,22 +107,26 @@ def randInsert(result, vectors):
 def saveFile(filePath, fileContent):
     'pass'
 
+def writeToFile(fileObject, data):
+    if isinstance(data, list):
+        for i in range(len(data)):
+            writeToFile(fileObject, data[i])
+    else:
+        fileObject.write(str(data) + '\n')
+
 def saveList(filePath, myList):
     f = open(filePath, 'w')
-    for i in range(len(myList)):
-        if (isinstance(myList[i], list)):
-            for j in range(len(myList[i])):
-                if j == len(myList[i]) - 1 and i == len(myList) - 1:
-                    f.write(str(myList[i][j]))
-                else:
-                    f.write(str(myList[i][j]) + '\n')
-        else:
-            if (i == len(myList) - 1):
-                f.write(str(myList[i]))
-            else:
-                f.write(str(myList[i]) + '\n')
-    
+    writeToFile(f, myList)
     f.close()
+
+def readFromList(contentList, dataSave, index):
+    for i in range(len(dataSave)):
+        if isinstance(dataSave[i], list):
+            index = readFromList(contentList, dataSave[i], index)
+        else:
+            dataSave[i] = float(contentList[index])
+            index += 1
+    return index
 
 '''
 @description 从文件中读取list
@@ -137,14 +141,7 @@ def readListFromFile(filePath, myList):
         return False
     content = f.read()
     content = content.split('\n')
-    count = 0
-    for i in range(len(myList)):
-        if (isinstance(myList[i], list)):
-            for j in range(len(myList[i])):
-                myList[i][j] = float(content[count])
-                count += 1
-        else:
-            myList[i] = float(content[i])
+    readFromList(content, myList, 0)
     f.close()
     #print myList
     return True

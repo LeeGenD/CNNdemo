@@ -15,12 +15,11 @@ def getAccuracy(imageList, labelList):
         image = imageList[i]
         matrixList = formatInputMatrix(image)
         c1_layer = computeConvolution(matrixList, CONFIG.kernel_i_c1, CONFIG.bias_i_c1)
-        s2_layer = computeSample(c1_layer, CONFIG.C1_SIZE / CONFIG.S2_SIZE, CONFIG.bias_c1_s2)
+        s2_layer = computeSample(c1_layer, CONFIG.C1_SIZE / CONFIG.S2_SIZE)
         c3_layer = computeConvolution(s2_layer, CONFIG.kernel_s2_c3, CONFIG.bias_s2_c3)
-        s4_layer = computeSample(c3_layer, CONFIG.C3_SIZE / CONFIG.S4_SIZE, CONFIG.bias_c3_s4)
+        s4_layer = computeSample(c3_layer, CONFIG.C3_SIZE / CONFIG.S4_SIZE)
         o_layer = computeConvolution(s4_layer, CONFIG.kernel_s4_o, CONFIG.bias_s4_o)
         outputList = outputLayerToList(o_layer)
-        #print output
         label = Calc.getMaxIndex(outputList)
         testLabelList.append([labelList[i], label])
         if label == labelList[i]:
@@ -39,9 +38,9 @@ def formatInputMatrix(inputMatrix):
 def trainModel(image, label):
     matrixList = formatInputMatrix(image)
     c1_layer = computeConvolution(matrixList, CONFIG.kernel_i_c1, CONFIG.bias_i_c1)
-    s2_layer = computeSample(c1_layer, CONFIG.C1_SIZE / CONFIG.S2_SIZE, CONFIG.bias_c1_s2)
+    s2_layer = computeSample(c1_layer, CONFIG.C1_SIZE / CONFIG.S2_SIZE)
     c3_layer = computeConvolution(s2_layer, CONFIG.kernel_s2_c3, CONFIG.bias_s2_c3)
-    s4_layer = computeSample(c3_layer, CONFIG.C3_SIZE / CONFIG.S4_SIZE, CONFIG.bias_c3_s4)
+    s4_layer = computeSample(c3_layer, CONFIG.C3_SIZE / CONFIG.S4_SIZE)
     o_layer = computeConvolution(s4_layer, CONFIG.kernel_s4_o, CONFIG.bias_s4_o)
 
     o_error = setOutLayerErrors(o_layer, label)
@@ -151,7 +150,6 @@ def setConvErrors(currentLayer, sampleKernelSize, nextErrorLayer):
 转换输出结果为一维列表
 '''
 def outputLayerToList(m):
-    #print m
     list = []
     for i in range(len(m)):
         for j in range(len(m[i])):
@@ -174,39 +172,60 @@ def computeConvolution(matrixList, kernelMatrixMatrix, biasList):
         for j in range(len(kernelMatrixList)):
             resultMatrix = Calc.convnValid(matrixList[j], kernelMatrixList[j])
             newMatrix = Calc.matrixOp2(newMatrix, resultMatrix, None, None, Calc.plus)
-        #newMatrix = Calc.matrixOp2(newMatrix, bias, None, None, Calc.plus)
         newMatrix = Calc.matrixAddValue(newMatrix, bias)
         newMatrix = Calc.matrixOp(newMatrix, Calc.sigmod)
         resultList.append(newMatrix)
         # print '%d->%d,%d' % (i, len(newMatrix), len(newMatrix[0]))
     return resultList
 
-def computeSample(inputMatrixList, kernelSize, biasMatrix):
+def computeSample(inputMatrixList, kernelSize):
     resultList = []
     for i in range(len(inputMatrixList)):
         inputMatrix = inputMatrixList[i]
         resultMatrix = Calc.scaleMatrix(inputMatrix, kernelSize, kernelSize)
-        # mark 采样层貌似不需要加偏置、sigmod
-        # resultMatrix = Calc.matrixOp2(resultMatrix, biasMatrix, None, None, Calc.plus)
-        # resultMatrix = Calc.matrixOp(resultMatrix, Calc.sigmod)
         resultList.append(resultMatrix)
-        #print '%d->%d,%d' % (i, len(resultMatrix), len(resultMatrix[0]))
-    # for i in range(len(resultList)):
-    #     print '--------------------------------'
-    #     Calc.printMatrix(resultList[i])
     return resultList
 
 def printSize(matrix):
     print '%d,%d' % (len(matrix), len(matrix[0]))
 
+'''
+@description 读取文件中的权值参数
+'''
+def readResultFromFile():
+    return (reader.readListFromFile(CONFIG.KERNEL_I_C1_FILE, CONFIG.kernel_i_c1)
+        and reader.readListFromFile(CONFIG.KERNEL_S2_C3_FILE, CONFIG.kernel_s2_c3)
+        and reader.readListFromFile(CONFIG.KERNEL_S4_O_FILE, CONFIG.kernel_s4_o)
+        and reader.readListFromFile(CONFIG.BIAS_I_C1, CONFIG.bias_i_c1)
+        and reader.readListFromFile(CONFIG.BIAS_S2_C3, CONFIG.bias_s2_c3)
+        and reader.readListFromFile(CONFIG.BIAS_S4_O, CONFIG.bias_s4_o))
+
+def initWeightAndBias():
+    fromFileSuccess = readResultFromFile()
+    if fromFileSuccess:
+        print '从文件中初始化权值参数成功'
+        return
+
+'''
+@description 保存训练后的参数到文件
+'''
+def saveResultToFile():
+    reader.saveList(CONFIG.KERNEL_I_C1_FILE, CONFIG.kernel_i_c1)
+    reader.saveList(CONFIG.KERNEL_S2_C3_FILE, CONFIG.kernel_s2_c3)
+    reader.saveList(CONFIG.KERNEL_S4_O_FILE, CONFIG.kernel_s4_o)
+
+    reader.saveList(CONFIG.BIAS_I_C1, CONFIG.bias_i_c1)
+    reader.saveList(CONFIG.BIAS_S2_C3, CONFIG.bias_s2_c3)
+    reader.saveList(CONFIG.BIAS_S4_O, CONFIG.bias_s4_o)
+
 
 if __name__ == '__main__':
 
     #初始参数
-    imageNumber = 100
+    imageNumber = 60000
 
     #初始化权值矩阵等
-    #initWeightAndBias()
+    initWeightAndBias()
 
     #读取label数据
     labelReader = reader.BitFileReader()
@@ -247,3 +266,14 @@ if __name__ == '__main__':
             accuracy = getAccuracy(imageList, labelList)
             print '第%d次训练，准确率：%f' % (trainTimes, accuracy)
             print '耗时%fs' % (time.time() - startTime)
+
+    while True:
+        print '是否需要保存权重等数据到文件中？(Y/N)'
+        needSave = raw_input()
+        if needSave.upper() == 'Y':
+            saveResultToFile()
+            print '保存成功，训练结束'
+            break
+        elif needSave.upper() == 'N':
+            print '训练结束'
+            break
